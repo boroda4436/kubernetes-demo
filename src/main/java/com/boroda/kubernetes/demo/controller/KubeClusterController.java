@@ -26,8 +26,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
+import io.fabric8.kubernetes.api.model.ServiceList;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import lombok.extern.log4j.Log4j2;
 
@@ -67,6 +67,23 @@ public class KubeClusterController {
         model.addAttribute("message", "Successfully created default cluster with name " + CLUSTER_NAME);
         model.addAttribute("deploy_details", response.toPrettyString());
         return "create_namespace";
+    }
+
+    @GetMapping("/get-services")
+    public String getServiceList()
+        throws IOException, GeneralSecurityException {
+        Container containerService = createContainerService();
+        Container.Projects.Zones.Clusters.Get getRequest = containerService.projects()
+            .zones().clusters().get(projectName, ZONE, CLUSTER_NAME);
+        Cluster cluster = getRequest.execute();
+
+        KubernetesClientFactory clientFactory = new KubernetesClientFactory(cluster.getEndpoint(),
+            cluster.getMasterAuth().getClusterCaCertificate());
+        try (KubernetesClient client = clientFactory.create()) {
+            ServiceList myNsServices = client.services().inNamespace("default").list();
+            return myNsServices.toString();
+        }
+
     }
 
     @GetMapping("/create-default-namespace")
