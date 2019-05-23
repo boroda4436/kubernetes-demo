@@ -1,20 +1,16 @@
 package com.boroda.kubernetes.demo.factory;
 
+import com.boroda.kubernetes.demo.model.ClusterCredentials;
+
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.ConfigBuilder;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.utils.HttpClientUtils;
-import io.fabric8.kubernetes.client.utils.ImpersonatorInterceptor;
-import okhttp3.Authenticator;
-import okhttp3.ConnectionPool;
-import okhttp3.OkHttpClient;
 
 import static com.google.api.client.util.Strings.isNullOrEmpty;
+import static okhttp3.TlsVersion.TLS_1_2;
 
 public class KubernetesClientFactory {
-    /** {@link OkHttpClient} instance shared by all Kubernetes clients. */
-    private OkHttpClient httpClient;
     /**
      * Default Kubernetes {@link Config} that will be the base configuration to create per-workspace
      * configurations.
@@ -24,14 +20,8 @@ public class KubernetesClientFactory {
     public KubernetesClientFactory() {
     }
 
-    public KubernetesClientFactory(String masterUrl, String caCert) {
-        this.defaultConfig = buildDefaultConfig(masterUrl, caCert);
-
-        OkHttpClient temporary = HttpClientUtils.createHttpClient(defaultConfig);
-        OkHttpClient.Builder builder = temporary.newBuilder();
-        ConnectionPool oldPool = temporary.connectionPool();
-        oldPool.evictAll();
-        this.httpClient = builder.build();
+    public KubernetesClientFactory(ClusterCredentials clusterCredentials) {
+        this.defaultConfig = buildDefaultConfig(clusterCredentials);
     }
 
     /**
@@ -41,31 +31,35 @@ public class KubernetesClientFactory {
      * create(String workspaceId)} method should be used to retrieve a Kubernetes client.
      */
     public KubernetesClient create() {
-        OkHttpClient clientHttpClient =
-            httpClient.newBuilder().authenticator(Authenticator.NONE).build();
-        OkHttpClient.Builder builder = clientHttpClient.newBuilder();
-        builder.interceptors().clear();
-        clientHttpClient =
-            builder
-                .addInterceptor(new ImpersonatorInterceptor(defaultConfig))
-                .build();
-
-        return new DefaultKubernetesClient(clientHttpClient, defaultConfig);
-
+        return new DefaultKubernetesClient(this.defaultConfig);
     }
 
     /**
      * Builds the default Kubernetes {@link Config} that will be the base configuration to create
      * per-workspace configurations.
      */
-    private Config buildDefaultConfig(String masterUrl, String caCert) {
+    private Config buildDefaultConfig(ClusterCredentials clusterCredentials) {
         ConfigBuilder configBuilder = new ConfigBuilder();
-        if (!isNullOrEmpty(masterUrl)) {
-            configBuilder.withMasterUrl(masterUrl);
+        if (!isNullOrEmpty(clusterCredentials.getMasterUrl())) {
+            configBuilder.withMasterUrl(clusterCredentials.getMasterUrl());
+        }
+        if (!isNullOrEmpty(clusterCredentials.getCaCertData())) {
+            configBuilder.withCaCertData(clusterCredentials.getCaCertData());
+        }
+        if (!isNullOrEmpty(clusterCredentials.getPassword()) &&
+            !isNullOrEmpty(clusterCredentials.getUsername()) ) {
+            configBuilder.withPassword(clusterCredentials.getPassword());
+            configBuilder.withUsername(clusterCredentials.getUsername());
+        }
+        if (!isNullOrEmpty(clusterCredentials.getClientKey()) &&
+            !isNullOrEmpty(clusterCredentials.getClientCertificate()) ) {
+            configBuilder.withClientKeyData(clusterCredentials.getClientKey());
+            configBuilder.withClientCertData(clusterCredentials.getClientCertificate());
         }
 
+
         configBuilder.withTrustCerts(true);
-        configBuilder.withCaCertData(caCert);
+        configBuilder.withTlsVersions(TLS_1_2);
 
         return configBuilder.build();
     }

@@ -9,6 +9,7 @@ import java.security.GeneralSecurityException;
 import java.util.Arrays;
 
 import com.boroda.kubernetes.demo.factory.KubernetesClientFactory;
+import com.boroda.kubernetes.demo.model.ClusterCredentials;
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.HttpTransport;
@@ -26,10 +27,16 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 
+import io.fabric8.kubernetes.api.model.Namespace;
+import io.fabric8.kubernetes.api.model.NamespaceBuilder;
 import io.fabric8.kubernetes.api.model.ServiceList;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import lombok.extern.log4j.Log4j2;
+
+import static com.google.common.base.Strings.isNullOrEmpty;
 
 @Log4j2
 @Controller
@@ -37,7 +44,7 @@ import lombok.extern.log4j.Log4j2;
 @PropertySource("classpath:application.properties")
 public class KubeClusterController {
 
-    private static final String CLUSTER_NAME = "cbs-cluster";
+    private static final String CLUSTER_NAME = "cbs-cluster-1-11";
     private static final String NAMESPACE_NAME = "cbs-namespace";
     private static final String ZONE = "us-central1-b";
     private static final String CLUSTER_VERSION = "1.12.7-gke.10";
@@ -46,13 +53,18 @@ public class KubeClusterController {
     private String projectName;
 
     @GetMapping("/create-default")
-    public String installBasicCluster(Model model) throws IOException,
+    public String installBasicCluster(Model model,
+        @RequestParam(name = "cluster_version", required = false) String version,
+        @RequestParam(name = "cluster_name", required = false) String name) throws IOException,
         GeneralSecurityException{
+
+        String clusterVersion = isNullOrEmpty(version) ? CLUSTER_VERSION : version;
+        String clusterName = isNullOrEmpty(name) ? CLUSTER_VERSION : name;
 
         CreateClusterRequest requestBody = new CreateClusterRequest();
         Cluster cluster = new Cluster();
-        cluster.setName(CLUSTER_NAME);
-        cluster.setInitialClusterVersion(CLUSTER_VERSION);
+        cluster.setName(clusterName);
+        cluster.setInitialClusterVersion(clusterVersion);
         cluster.setInitialNodeCount(1);
         requestBody.setCluster(cluster);
 
@@ -69,49 +81,49 @@ public class KubeClusterController {
         return "create_namespace";
     }
 
+    @ResponseBody
     @GetMapping("/get-services")
-    public String getServiceList()
+    public String getServiceList(@RequestParam(name = "cluster_name", required = false) String name)
         throws IOException, GeneralSecurityException {
+        String clusterName = isNullOrEmpty(name) ? CLUSTER_VERSION : name;
+
         Container containerService = createContainerService();
         Container.Projects.Zones.Clusters.Get getRequest = containerService.projects()
-            .zones().clusters().get(projectName, ZONE, CLUSTER_NAME);
+            .zones().clusters().get(projectName, ZONE, clusterName);
         Cluster cluster = getRequest.execute();
 
-        KubernetesClientFactory clientFactory = new KubernetesClientFactory(cluster.getEndpoint(),
-            cluster.getMasterAuth().getClusterCaCertificate());
+        ClusterCredentials clusterCredentials = getClusterCredentials(cluster);
+        KubernetesClientFactory clientFactory = new KubernetesClientFactory(clusterCredentials);
         try (KubernetesClient client = clientFactory.create()) {
             ServiceList myNsServices = client.services().inNamespace("default").list();
             return myNsServices.toString();
         }
-
     }
 
+    @ResponseBody
     @GetMapping("/create-default-namespace")
-    public String createBasicNamespace()
+    public String createBasicNamespace(@RequestParam(name = "cluster_name", required = false) String name)
         throws IOException, GeneralSecurityException {
+        String clusterName = isNullOrEmpty(name) ? CLUSTER_VERSION : name;
 
         Container containerService = createContainerService();
         Container.Projects.Zones.Clusters.Get getRequest = containerService.projects()
-            .zones().clusters().get(projectName, ZONE, CLUSTER_NAME);
+            .zones().clusters().get(projectName, ZONE, clusterName);
         Cluster cluster = getRequest.execute();
 
-        KubernetesClientFactory clientFactory = new KubernetesClientFactory(cluster.getEndpoint(),
-            cluster.getMasterAuth().getClusterCaCertificate());
+        ClusterCredentials clusterCredentials = getClusterCredentials(cluster);
+        KubernetesClientFactory clientFactory = new KubernetesClientFactory(clusterCredentials);
         try (KubernetesClient client = clientFactory.create()) {
-            client
-                .namespaces()
-                .createNew()
-                .withNewMetadata()
-                .withName(NAMESPACE_NAME)
-                .endMetadata()
-                .done();
+            Namespace ns = new NamespaceBuilder().withNewMetadata().withName(NAMESPACE_NAME).addToLabels("this", "rocks").endMetadata().build();
+            client.namespaces().create(ns);
+            Namespace namespace =
+                client.namespaces().withName(NAMESPACE_NAME).get();
+            log.info(namespace.toString());
+
+            return "Successfully created default namespace with name " +
+                NAMESPACE_NAME + ". Details: \n" + namespace.toString();
         }
-
-        return "Successfully created default namespace with name " +
-            NAMESPACE_NAME + ". <a href=\"/cluster/create-default-namespace\">CREATE " +
-            "NAMESPACE</a>";
     }
-
 
     private Container createContainerService() throws IOException, GeneralSecurityException {
         HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
@@ -130,6 +142,17 @@ public class KubeClusterController {
 
         return new Container.Builder(httpTransport, jsonFactory, credential)
             .setApplicationName("Google-ContainerSample/0.1")
+            .build();
+    }
+
+    private ClusterCredentials getClusterCredentials(final Cluster cluster) {
+        return ClusterCredentials.builder()
+            .masterUrl(cluster.getEndpoint())
+            .caCertData(cluster.getMasterAuth().getClusterCaCertificate())
+            .clientKey(cluster.getMasterAuth().getClientKey())
+            .clientCertificate(cluster.getMasterAuth().getClientCertificate())
+            .username(cluster.getMasterAuth().getUsername())
+            .password(cluster.getMasterAuth().getPassword())
             .build();
     }
 }
