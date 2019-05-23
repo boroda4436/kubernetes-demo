@@ -84,8 +84,8 @@ public class KubeClusterController {
     @ResponseBody
     @GetMapping("/get-services")
     public String getServiceList(@RequestParam(name = "cluster_name", required = false) String name)
-        throws IOException, GeneralSecurityException {
-        String clusterName = isNullOrEmpty(name) ? CLUSTER_VERSION : name;
+        throws IOException, GeneralSecurityException, InterruptedException {
+        String clusterName = isNullOrEmpty(name) ? CLUSTER_NAME : name;
 
         Container containerService = createContainerService();
         Container.Projects.Zones.Clusters.Get getRequest = containerService.projects()
@@ -104,7 +104,7 @@ public class KubeClusterController {
     @GetMapping("/create-default-namespace")
     public String createBasicNamespace(@RequestParam(name = "cluster_name", required = false) String name)
         throws IOException, GeneralSecurityException {
-        String clusterName = isNullOrEmpty(name) ? CLUSTER_VERSION : name;
+        String clusterName = isNullOrEmpty(name) ? CLUSTER_NAME : name;
 
         Container containerService = createContainerService();
         Container.Projects.Zones.Clusters.Get getRequest = containerService.projects()
