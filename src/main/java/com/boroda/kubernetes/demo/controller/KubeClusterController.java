@@ -44,7 +44,7 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 @PropertySource("classpath:application.properties")
 public class KubeClusterController {
 
-    private static final String CLUSTER_NAME = "cbs-cluster-1-11";
+    private static final String CLUSTER_NAME = "cbs-cluster";
     private static final String NAMESPACE_NAME = "cbs-namespace";
     private static final String ZONE = "us-central1-b";
     private static final String CLUSTER_VERSION = "1.12.7-gke.10";
@@ -59,7 +59,7 @@ public class KubeClusterController {
         GeneralSecurityException{
 
         String clusterVersion = isNullOrEmpty(version) ? CLUSTER_VERSION : version;
-        String clusterName = isNullOrEmpty(name) ? CLUSTER_VERSION : name;
+        String clusterName = isNullOrEmpty(name) ? CLUSTER_NAME : name;
 
         CreateClusterRequest requestBody = new CreateClusterRequest();
         Cluster cluster = new Cluster();
