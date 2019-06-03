@@ -2,9 +2,9 @@ package com.boroda.kubernetes.demo.factory;
 
 import com.boroda.kubernetes.demo.model.ClusterCredentials;
 
+import io.fabric8.kubernetes.client.AutoAdaptableKubernetesClient;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.ConfigBuilder;
-import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
 
 import static com.google.api.client.util.Strings.isNullOrEmpty;
@@ -31,7 +31,7 @@ public class KubernetesClientFactory {
      * create(String workspaceId)} method should be used to retrieve a Kubernetes client.
      */
     public KubernetesClient create() {
-        return new DefaultKubernetesClient(this.defaultConfig);
+        return new AutoAdaptableKubernetesClient(this.defaultConfig);
     }
 
     /**
@@ -57,7 +57,7 @@ public class KubernetesClientFactory {
             configBuilder.withClientCertData(clusterCredentials.getClientCertificate());
         }
 
-
+        configBuilder.withOauthToken(clusterCredentials.getOauthToken());
         configBuilder.withTrustCerts(true);
         configBuilder.withTlsVersions(TLS_1_2);
 

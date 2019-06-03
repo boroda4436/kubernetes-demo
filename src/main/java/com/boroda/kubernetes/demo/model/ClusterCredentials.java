@@ -12,5 +12,5 @@ public class ClusterCredentials {
     private String caCertData;
     private String clientKey;
     private String clientCertificate;
-
+    private String oauthToken;
 }
